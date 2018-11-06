@@ -1,0 +1,16 @@
+{
+  "name": "mappingjs",
+  "version": "1.0.0",
+  "description": "A nodejs package to be used together with ROS mapping package.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Nyi Nyi Nyan Lin",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "express": "^4.16.3",
+    "method-override": "^2.3.10"
+  }
+}

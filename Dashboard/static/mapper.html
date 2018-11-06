@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<script type="text/javascript" src="jquery-3.3.1.min.js"></script>
+<script type="text/javascript" src="roslib.min.js"></script>
+<script type="text/javascript" src="eventemitter2.min.js"></script>
+<script type="text/javascript" src="Chart.min.js"></script>
+<script type="text/javascript" src="plotly-latest.min.js"></script>
+<style>
+ #map {
+   width: 100%;
+   height: 400px;
+   background-color: grey;
+ }
+ .modebar{
+      display: none !important;
+ }
+</style>
+</head>
+<body>
+	<div>
+	<select size="1" id="startswitch">
+		<option value="start">Start</option>
+		<option value="end" selected="selected">End</option>
+	</select>
+	<input id="triggerbtn" type="button" value="Trigger" />
+	<select size="1" id="modeswitch">
+		<option value="pole" selected="selected">Pole</option>
+		<option value="boat">Boat</option>
+	</select>
+	<select size="1" id="timerswitch">
+		<option value="on">Timer On</option>
+		<option value="off" selected="selected">Timer Off</option>
+	</select>
+	<input id="resetbtn" type="button" value="Reset Dpt." />
+	</div>
+	<table>
+		<tr>
+			<td>Distance</td>
+			<td>
+				<input id="distin" type="text" />
+			</td>
+			<td>
+				<select size="1" id="dirswitch">
+		               		<option value="lmp">Left</option>
+        		        	<option value="rmp" selected="selected">Right</opti$
+       				</select>
+			</td>
+		</tr>
+		<tr>
+			<td>Elevation</td>
+			<td>
+				<input id="elevin" type="text" />
+			</td>
+			<td>
+				<input id="manualbtn" type="button" value="Manual" />
+			</td>
+		</tr>
+	</table>
+	<table>
+		<tr>
+			<td>Left Bank</td>
+			<td>
+				<select size="1" id="leftswitch">
+					<option value="1">Sand</option>
+					<option value="2">Rock</option>
+					<option value="3">Bushes</option>
+					<option value="4">Grass</option>
+					<option value="5">Trees</option>
+					<option value="6">Grass+Bushes</option>
+					<option value="7">Grass+Trees</option>
+					<option value="8">Grass+Bushes+Trees</option>
+					<option value="9">Sand+Rock</option>
+					<option value="10">Mud</option>
+				</select>				
+			</td>
+		</tr>
+		<tr>
+			<td>Middle|Bottom</td>
+			<td>
+                                <select size="1" id="middleswitch">
+                                        <option value="1">Sand</option>
+                                        <option value="2">Rock</option>
+                                        <option value="3">Bushes</option>
+                                        <option value="4">Grass</option>
+                                        <option value="5">Trees</option>
+                                        <option value="6">Grass+Bushes</option>
+                                        <option value="7">Grass+Trees</option>
+                                        <option value="8">Grass+Bushes+Trees</option>
+                                        <option value="9">Sand+Rock</option>
+                                        <option value="10">Mud</option>     
+                                </select>                           
+                        </td>
+		</tr>
+		<tr>
+			<td>Right</td>
+			<td>
+                                <select size="1" id="rightswitch">     
+                                        <option value="1">Sand</option>
+                                        <option value="2">Rock</option>
+                                        <option value="3">Bushes</option>
+                                        <option value="4">Grass</option>
+                                        <option value="5">Trees</option>
+                                        <option value="6">Grass+Bushes</option>
+                                        <option value="7">Grass+Trees</option>
+                                        <option value="8">Grass+Bushes+Trees</option>
+                                        <option value="9">Sand+Rock</option>
+                                        <option value="10">Mud</option>
+                                </select>                            
+                        </td>
+		</tr>
+	</table>
+	<div>
+ 		 <input id="savebtn" type="button" value="Download" />
+	 	 <input id="clearbtn" type="button" value="Clear" />
+        </div>
+
+  <br></br>
+  <div id="plotly" style="width:100%;height:250px;"></div>
+  <div id="map"></div>
+  <script>
+  var map;
+  var path;
+  var position;
+  var circle;
+  var jsonObj;
+  var jsonCoordObj;
+  var plotterCmdTopic;
+  var startTopic;
+  var stopTopic;
+  var triggerTopic;
+  var plotter;
+  var mapsDataset;
+  var mapsCoordDataset;
+  var coordPlotter;
+  var modeTopic;
+  function initMap(){
+     var wuntho = {lat:23.901695, lng:95.678726};
+      map = new google.maps.Map(document.getElementById('map'),{
+      zoom:18,
+      center: wuntho,
+      mapTypeId: 'satellite'
+    });
+  }
+  </script>
+	<script>
+		$(document).ready(function(){
+			var ros = new ROSLIB.Ros({
+				url : 'ws://localhost:9090'
+			});
+
+     			var ctx = document.getElementById("plotly");
+
+			ros.on('connection',function(){
+				console.log("Connected to bridge");
+			});
+
+			ros.on('error',function(error){
+				console.log("Error connection to bridge:",error);
+			});
+
+			ros.on('close',function(){
+				console.log("Closed connection to bridge");
+			});
+		       
+		        plotterCmdTopic = new ROSLIB.Topic({
+   			     ros : ros,
+     			     name : '/plotter_cmd',
+     			     messageType : 'std_msgs/String'
+     		        });
+
+			gpsTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/gps',
+				messageType : 'mapping/gps'
+			});
+
+			startTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/start',
+				messageType : 'std_msgs/Bool'
+			});
+
+			stopTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/stop',
+				messageType : 'std_msgs/Bool'
+			});
+
+			triggerTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/trigger',
+				messageType : 'std_msgs/Bool'
+			});
+
+			modeTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/mode',
+				messageType : 'std_msgs/Bool'
+			});
+			
+			manualTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/manual_input',
+				messageType : 'std_msgs/String'
+			});
+
+			resetDepthTopic = new ROSLIB.Topic({
+				ros : ros,
+				name : '/reset_depth',
+				messageType : 'std_msgs/Empty'
+			});
+
+     		        plotter = new ROSLIB.Topic({
+     			   ros : ros,
+     			   name: '/json_plot',
+     			   messageType : 'std_msgs/String'
+     			});
+
+     		        coordPlotter = new ROSLIB.Topic({
+		           ros : ros,
+     			   name: '/json_coord',
+     			   messageType : 'std_msgs/String'
+     		        });
+
+      gpsTopic.subscribe(function(message){
+		if(position){
+                	position[0].setMap(null);
+        	}
+        	position = [];
+           	var cir = new google.maps.Circle({
+                        strokeColor: '#FFFF00',
+                        strokeOpacity: 1,
+                        strokeWeight: 1,
+                        fillColor: '#FFFF00',
+                        fillOpacity: 1,
+                        map: map,
+                        center: {'lat':message.lat,'lng':message.lng},
+                        radius: 1
+                });
+            	position[0] = cir;
+	});
+
+      plotter.subscribe(function(message){
+        jsonObj = message.data;
+        var obj = JSON.parse(message.data);
+        var dataset = [{x:[],y:[]}];
+        mapsDataset = [];
+        for (z in obj){
+          dataset[0].x[z] = obj[z][2];
+          dataset[0].y[z] = obj[z][3];
+          mapsDataset[z] = {'lat': obj[z][0],'lng': obj[z][1]};
+        }
+        Plotly.newPlot(ctx, dataset, { margin: {t:0}});
+        if(path)path.setMap(null);
+        path = new google.maps.Polyline({
+          path: mapsDataset,
+          geodesic: true,
+          strokeColor: '#FF0000',
+          strokeOpacity: 0.7,
+          strokeWeight:4
+        });
+        path.setMap(map);
+      });
+
+coordPlotter.subscribe(function(message){
+        jsonCoordObj = message.data;
+        var obj = JSON.parse(message.data);
+	if(circle){
+		for (y in circle){
+			circle[y].setMap(null);
+		}		
+	}
+	circle = [];
+	for (var coord in obj){
+	   var cir = new google.maps.Circle({
+			strokeColor: '#00FF11',
+			strokeOpacity: 0.8,
+			strokeWeight: 2,
+			fillColor: '#00FF55',
+			fillOpacity: 0.5,
+			map: map,
+			center: {'lat':obj[coord][0],'lng':obj[coord][1]},
+			radius: 1
+		});
+	    circle.push(cir);
+	}
+      });
+
+			$("#startswitch").change(function(){
+				var msg = new ROSLIB.Message({
+					data : true
+				});
+				switch($("#startswitch").val()){
+					case "start":
+						startTopic.publish(msg);
+						break;
+					case "end":
+						stopTopic.publish(msg);
+					break;
+				}
+			});
+
+			$("#startbtn").on("click",function(){
+				var msg = new ROSLIB.Message({
+					data : true
+				});
+				console.log("clicked");
+				startTopic.publish(msg);
+			});
+
+			$("#stopbtn").click(function(){
+				var msg = new ROSLIB.Message({
+					data : true
+				});
+				stopTopic.publish(msg);
+			});
+
+			function trigger(){
+				var msg = new ROSLIB.Message({
+					data : true
+				});
+				triggerTopic.publish(msg);
+			}
+
+			$("#triggerbtn").click(function(){
+				trigger();
+			});
+
+			$("#modeswitch").change(function(){
+				var mode;
+				switch($("#modeswitch").val()){
+					case "pole":
+						mode = true;
+						break;
+					case "boat":
+					mode = false;
+					break;
+				}
+				var msg = new ROSLIB.Message({
+					data : mode
+				});
+				modeTopic.publish(msg);
+			});
+
+			$("#manualbtn").on("click",function(){
+				var dir = $("#dirswitch").val()
+				var dist = parseFloat($("#distin").val()).toFixed(2)
+				var elev = parseFloat($("#elevin").val()).toFixed(2)
+				var msg = new ROSLIB.Message({
+					data : '{"dir":"'+dir+'","dist":'+dist+',"elev":'+elev+'}'
+				});
+				console.log(msg);
+				manualTopic.publish(msg);
+			});
+
+			var timer = false;
+			function toggleTimer(mode){
+				if(mode == true){
+					timer = setInterval(function(){
+						trigger();
+					},1000);
+				}else{
+					clearInterval(timer);
+				}
+			}
+
+			$("#timerswitch").change(function(){
+				var mode;
+				switch($("#timerswitch").val()){
+					case "on":
+						toggleTimer(true)
+						break;
+					case "off":
+						toggleTimer(false)
+						break;
+				}
+				var msg = new ROSLIB.Message({
+					data : mode
+				});
+				modeTopic.publish(msg);
+			});
+		});
+
+    $("#clearbtn").on("click",function(){
+      var msg = new ROSLIB.Message({
+        data: "clear"
+      });
+      plotterCmdTopic.publish(msg);
+    });
+
+    $("#resetbtn").on("click",function(){
+	var msg = new ROSLIB.Message({});
+	resetDepthTopic.publish(msg);
+    });
+
+    $("#savebtn").on("click",function(){
+      var currentdate = new Date();
+      var datetime =  currentdate.getDate() + "_"
+                + (currentdate.getMonth()+1)  + "_"
+                + currentdate.getFullYear() + "_ "
+                + currentdate.getHours() + "_"
+                + currentdate.getMinutes() + "_"
+                + currentdate.getSeconds();
+      var filename = prompt("Enter Filename",datetime);
+      var obj = json.loads('{"terrain":'+$("#leftswitch").val()+',"data":[]}');
+      obj['data'] = jsonObj;
+      if(filename!=null){
+        if(obj['data']){
+          download(obj,filename + ".json","application/json");
+        }
+      }
+    });
+
+    function download(data, filename, type) {
+        var file = new Blob([data], {type: type});
+        if (window.navigator.msSaveOrOpenBlob) // IE10+
+            window.navigator.msSaveOrOpenBlob(file, filename);
+        else { // Others
+            var a = document.createElement("a"),
+                    url = URL.createObjectURL(file);
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() {
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            }, 0);
+        }
+    }
+</script>
+<script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBnpYbxxxuxaIcQy30WPGNDlYphtPJ0cZk&callback=initMap">
+    </script>
+</body>
+</html>

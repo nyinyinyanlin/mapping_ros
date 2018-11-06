@@ -1,0 +1,9 @@
+<launch>
+		<node output="screen" name="Barometer" pkg="mapping" type="baro.py" />
+		<node respawn="true" output="screen" name="GPS" pkg="mapping" type="gps.py" />
+		<node output="screen" name="Fuser" pkg="mapping" type="fuser.py" />
+		<node name="GMap" pkg="mapping" type="gmaps_elev_srv.py" />
+		<node name="NodeJS" pkg="mapping" type="nodeserver.sh" />
+		<node output="screen" name="Plotter" pkg="mapping" type="plotter2.py" />
+		<node respawn="true" output="screen" name="ROSSerial" args="/dev/ttyACM0" pkg="rosserial_arduino" type="serial_node.py" />
+</launch>
